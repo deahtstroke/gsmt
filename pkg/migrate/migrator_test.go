@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"gsmt/pkg/dialect"
+	"os"
+	"path"
 	"regexp"
 	"testing"
 
@@ -27,9 +29,16 @@ func Test_findProjectRootDirectory(t *testing.T) {
 func Test_new_migrator_should_have_all_scripts(t *testing.T) {
 	db := sql.DB{}
 
+	fileCount, err := getScriptCount(rootDirectory)
+	if err != nil {
+		t.Fatalf("Error getting script count: %v", err)
+	}
 	migrator, err := New(&db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
 
-	if err != nil || len(migrator.scripts) != 1 {
+	if err != nil {
+		t.Fatalf("Not expecting error, got: %v", err)
+	}
+	if len(migrator.scripts) != fileCount {
 		t.Fatalf("Wrong amount of test scripts. Found %d scripts", len(migrator.scripts))
 	}
 }
@@ -79,9 +88,7 @@ func Test_fetchAppliedChecksums(t *testing.T) {
 		t.Fatal("Unable to find test2.sql or test2.sql checksum is not correct")
 	}
 
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("Mock expecations were not met: %v", err)
-	}
+	assertMockExpectations(t, mock)
 }
 
 func Test_fetchAppliedChecksums_sqlerror(t *testing.T) {
@@ -104,9 +111,7 @@ func Test_fetchAppliedChecksums_sqlerror(t *testing.T) {
 		t.Fatalf("Not expecting error, found: %v", err)
 	}
 
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("There were some unexpected conditions: %v", err)
-	}
+	assertMockExpectations(t, mock)
 }
 
 func Test_ApplyMigrations_Success(t *testing.T) {
@@ -117,7 +122,7 @@ func Test_ApplyMigrations_Success(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory("./testdata/"), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
 
 	if err != nil {
 		t.Fatalf("Error creating migrator: %v", err)
@@ -137,9 +142,7 @@ func Test_ApplyMigrations_Success(t *testing.T) {
 		t.Fatalf("Not expecting error, found: %v", err)
 	}
 
-	if err = mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("Mock expectations were not met: %v", err)
-	}
+	assertMockExpectations(t, mock)
 }
 
 func Test_ApplyMigrations_AllChecksumsApplied(t *testing.T) {
@@ -150,7 +153,7 @@ func Test_ApplyMigrations_AllChecksumsApplied(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory("./testdata/"), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
 
 	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
 	checksums := sqlmock.NewRows([]string{"script_name", "checksum"}).
@@ -167,9 +170,7 @@ func Test_ApplyMigrations_AllChecksumsApplied(t *testing.T) {
 		t.Fatalf("Not expecting error, found: %v", err)
 	}
 
-	if err = mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("Mock expectations were not met: %v", err)
-	}
+	assertMockExpectations(t, mock)
 }
 
 func Test_ApplyMigrations_DifferentChecksumError(t *testing.T) {
@@ -180,7 +181,7 @@ func Test_ApplyMigrations_DifferentChecksumError(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory("./testdata/"), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
 
 	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
 	checksums := sqlmock.NewRows([]string{"script_name", "checksum"}).
@@ -197,9 +198,89 @@ func Test_ApplyMigrations_DifferentChecksumError(t *testing.T) {
 		t.Fatalf("Expecting error, found none")
 	}
 
-	if err = mock.ExpectationsWereMet(); err != nil {
+	assertMockExpectations(t, mock)
+}
+
+func Test_ApplyMigrations_RollbackOnScriptExecuteError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("An error %v was not expected when opening stub db connection", err)
+	}
+
+	defer db.Close()
+
+	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
+	checksums := sqlmock.NewRows([]string{"script_name", "checksum"})
+
+	mock.ExpectQuery(`SELECT EXISTS`).WillReturnRows(exists)
+	mock.ExpectQuery(`SELECT script_name, checksum FROM gsmt_migrations`).
+		WillReturnRows(checksums)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(migrator.scripts[0].Content)).WillReturnError(fmt.Errorf("Random error!"))
+	mock.ExpectRollback()
+
+	err = migrator.ApplyMigrations()
+
+	if err == nil {
+		t.Fatalf("Expecting error, found none")
+	}
+
+	assertMockExpectations(t, mock)
+}
+
+func Test_ApplyMigrations_RollbackOnMigrationRowInsertError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("An error %v was not expected when opening stub db connection", err)
+	}
+
+	defer db.Close()
+
+	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+
+	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
+	checksums := sqlmock.NewRows([]string{"script_name", "checksum"})
+
+	mock.ExpectQuery(`SELECT EXISTS`).WillReturnRows(exists)
+	mock.ExpectQuery(`SELECT script_name, checksum FROM gsmt_migrations`).
+		WillReturnRows(checksums)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(migrator.scripts[0].Content)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO gsmt_migrations (checksum, execution_time, script_name, script_content)`)).
+		WillReturnError(fmt.Errorf("Error inserting"))
+	mock.ExpectRollback()
+
+	err = migrator.ApplyMigrations()
+
+	if err == nil {
+		t.Fatalf("Expecting error, found none")
+	}
+
+	assertMockExpectations(t, mock)
+}
+
+func assertMockExpectations(t *testing.T, mock sqlmock.Sqlmock) {
+	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("Mock expectations were not met: %v", err)
 	}
+}
+
+func getScriptCount(directory string) (int, error) {
+	files, err := os.ReadDir(directory)
+	if err != nil {
+		return 0, fmt.Errorf("Error reading directory %s: %v", directory, err)
+	}
+
+	count := 0
+	for _, file := range files {
+		if ext := path.Ext(file.Name()); ext == ".sql" {
+			count++
+		}
+	}
+
+	return count, nil
 }
 
 func addMigratorInteractions(mock sqlmock.Sqlmock, migrator *Migrator) {

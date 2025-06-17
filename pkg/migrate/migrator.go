@@ -103,31 +103,42 @@ func (m *Migrator) ApplyMigrations() error {
 			continue
 		}
 
-		tx, err := m.Db.Begin()
+		err = m.applyScript(&script)
 		if err != nil {
-			return fmt.Errorf("Error beginning transaction for script [%s]: %v", script.Name, err)
-		}
-
-		start := time.Now()
-		if _, err = tx.Exec(script.Content); err != nil {
-			return fmt.Errorf("Error applying migration script [%s]: %v", script.Name, err)
-		}
-
-		insertQuery := fmt.Sprintf(`
-			INSERT INTO gsmt_migrations (checksum, execution_time, script_name, script_content)
-			VALUES (%s, %s, %s, %s)
-			`, m.dialect.Placeholder(1), m.dialect.Placeholder(2), m.dialect.Placeholder(3), m.dialect.Placeholder(4))
-		_, err = tx.Exec(insertQuery, script.Hash, time.Since(start).Milliseconds(), script.Name, script.Content)
-		if err != nil {
-			return fmt.Errorf("Error inserting new gmst_migration with name [%s] and checksum [%s]: %v", script.Name, script.Hash, err)
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			return fmt.Errorf("Error commiting transaction for script %s", script.Name)
+			return err
 		}
 	}
 	return nil
+}
+
+func (m *Migrator) applyScript(script *MigrationScript) (err error) {
+	tx, err := m.Db.Begin()
+	if err != nil {
+		return fmt.Errorf("Error beginning transaction for script %s: %v", script.Name, err)
+	}
+
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	start := time.Now()
+	if _, err = tx.Exec(script.Content); err != nil {
+		return fmt.Errorf("Error applying migration script %s: %v", script.Name, err)
+	}
+
+	insertQuery := fmt.Sprintf(`
+			INSERT INTO gsmt_migrations (checksum, execution_time, script_name, script_content)
+			VALUES (%s, %s, %s, %s)
+			`, m.dialect.Placeholder(1), m.dialect.Placeholder(2), m.dialect.Placeholder(3), m.dialect.Placeholder(4))
+	_, err = tx.Exec(insertQuery, script.Hash, time.Since(start).Milliseconds(), script.Name, script.Content)
+	if err != nil {
+		return fmt.Errorf("Error inserting new gmst_migration with name [%s] and checksum [%s]: %v", script.Name, script.Hash, err)
+	}
+
+	err = tx.Commit()
+	return err
 }
 
 // This function tries to find the directory with the go.mod file
