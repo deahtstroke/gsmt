@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"gsmt/pkg/dialect"
+	"github.com/deahtstroke/gsmt/pkg/dialect"
 	"log"
 	"os"
 	"path"

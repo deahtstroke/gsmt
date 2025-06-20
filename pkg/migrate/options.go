@@ -1,7 +1,7 @@
 package migrate
 
 import (
-	"gsmt/pkg/dialect"
+	"github.com/deahtstroke/gsmt/pkg/dialect"
 )
 
 type MigratorOption func(m *Migrator)

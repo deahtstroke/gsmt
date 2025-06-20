@@ -3,8 +3,8 @@ package integration
 import (
 	"context"
 	"database/sql"
-	"gsmt/pkg/dialect"
-	"gsmt/pkg/migrate"
+	"github.com/deahtstroke/gsmt/pkg/dialect"
+	"github.com/deahtstroke/gsmt/pkg/migrate"
 	"log"
 	"testing"
 

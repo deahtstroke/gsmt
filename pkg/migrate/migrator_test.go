@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"gsmt/pkg/dialect"
+	"github.com/deahtstroke/gsmt/pkg/dialect"
 	"os"
 	"path"
 	"regexp"

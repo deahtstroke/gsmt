@@ -2,7 +2,7 @@ package migrate
 
 import (
 	"database/sql"
-	"gsmt/pkg/dialect"
+	"github.com/deahtstroke/gsmt/pkg/dialect"
 	"testing"
 )
 
