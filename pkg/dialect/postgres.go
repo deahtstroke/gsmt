@@ -28,7 +28,7 @@ func (ps *PostgreSQLDialect) EnsureMigrationsTable(db *sql.DB) error {
 	var exists bool
 	err := db.QueryRow(`
 		SELECT EXISTS (
-			SELECT FROM information_scheme.tables
+			SELECT FROM information_schema.tables
 			WHERE table_schema = 'public' AND table_name = 'gmst_migrations'
 		)
 		`).Scan(&exists)

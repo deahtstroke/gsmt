@@ -248,7 +248,7 @@ func Test_ApplyMigrations_RollbackOnMigrationRowInsertError(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(migrator.scripts[0].Content)).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO gsmt_migrations (checksum, execution_time, script_name, script_content)`)).
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO gsmt_migrations (checksum, execution_time_ms, script_name, script_content)`)).
 		WillReturnError(fmt.Errorf("Error inserting"))
 	mock.ExpectRollback()
 
@@ -288,7 +288,7 @@ func addMigratorInteractions(mock sqlmock.Sqlmock, migrator *Migrator) {
 		mock.ExpectBegin()
 		mock.ExpectExec(regexp.QuoteMeta(script.Content)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO gsmt_migrations (checksum, execution_time, script_name, script_content)`)).
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO gsmt_migrations (checksum, execution_time_ms, script_name, script_content)`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 	}

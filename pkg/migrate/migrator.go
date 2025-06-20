@@ -129,7 +129,7 @@ func (m *Migrator) applyScript(script *MigrationScript) (err error) {
 	}
 
 	insertQuery := fmt.Sprintf(`
-			INSERT INTO gsmt_migrations (checksum, execution_time, script_name, script_content)
+			INSERT INTO gsmt_migrations (checksum, execution_time_ms, script_name, script_content)
 			VALUES (%s, %s, %s, %s)
 			`, m.dialect.Placeholder(1), m.dialect.Placeholder(2), m.dialect.Placeholder(3), m.dialect.Placeholder(4))
 	_, err = tx.Exec(insertQuery, script.Hash, time.Since(start).Milliseconds(), script.Name, script.Content)
