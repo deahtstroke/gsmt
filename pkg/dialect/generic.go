@@ -6,6 +6,5 @@ import (
 
 type Dialect interface {
 	Placeholder(i int) string
-	CreateMigrationTable() string
-	EnsureMigrationsTable(db *sql.DB) error
+	SetupMetadataTables(db *sql.DB) error
 }

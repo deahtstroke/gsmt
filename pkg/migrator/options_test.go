@@ -1,9 +1,11 @@
-package migrate
+package migrator
 
 import (
 	"database/sql"
-	"github.com/deahtstroke/gsmt/pkg/dialect"
+	"os"
 	"testing"
+
+	"github.com/deahtstroke/gsmt/pkg/dialect"
 )
 
 func Test_WithDialect_Success(t *testing.T) {
@@ -11,14 +13,15 @@ func Test_WithDialect_Success(t *testing.T) {
 		Dial dialect.Dialect
 	}{
 		"postgreSQL dialect": {
-			Dial: dialect.NewPostgresDialect(),
+			Dial: dialect.Postgres(),
 		},
 	}
 
 	for testName, params := range tests {
 		t.Run(testName, func(t *testing.T) {
 			db := sql.DB{}
-			migrator, _ := New(&db, WithDialect(params.Dial), WithRootDirectory("./testdata/"))
+			fs := os.DirFS("./testdata/")
+			migrator, _ := New(&db, WithDialect(params.Dial), WithSchema(fs))
 
 			if migrator.dialect == nil {
 				t.Fatalf("Migrator should not have a nil dialect")

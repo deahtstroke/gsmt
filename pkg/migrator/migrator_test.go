@@ -1,52 +1,51 @@
-package migrate
+package migrator
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/deahtstroke/gsmt/pkg/dialect"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/deahtstroke/gsmt/pkg/dialect"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
-var (
-	rootDirectory = "./testdata/"
-)
-
-func Test_findProjectRootDirectory(t *testing.T) {
-	dir, err := findProjectRootDirectory()
+func GetTestDataFs() fs.FS {
+	cwd, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("No root directory found")
+		return nil
 	}
-
-	fmt.Printf("Root directory: %s", dir)
+	return os.DirFS(path.Join(cwd, "testdata"))
 }
 
 func Test_new_migrator_should_have_all_scripts(t *testing.T) {
 	db := sql.DB{}
 
-	fileCount, err := getScriptCount(rootDirectory)
+	testDirectory := GetTestDataFs()
+	fileCount, err := getScriptCount(testDirectory)
 	if err != nil {
 		t.Fatalf("Error getting script count: %v", err)
 	}
-	migrator, err := New(&db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(&db, WithSchema(testDirectory), WithDialect(dialect.Postgres()))
 
 	if err != nil {
 		t.Fatalf("Not expecting error, got: %v", err)
 	}
-	if len(migrator.scripts) != fileCount {
-		t.Fatalf("Wrong amount of test scripts. Found %d scripts", len(migrator.scripts))
+	if len(migrator.schemaScripts) != fileCount {
+		t.Fatalf("Wrong amount of test scripts. Found %d scripts", len(migrator.schemaScripts))
 	}
 }
 
 func Test_new_migrator_without_dialect_should_panic(t *testing.T) {
 	db := sql.DB{}
 
-	_, err := New(&db, WithRootDirectory("./testdata"))
+	_, err := New(&db, WithSchema(GetTestDataFs()))
 	if err == nil {
 		t.Fatalf("Expecting error, found none")
 	}
@@ -122,7 +121,7 @@ func Test_ApplyMigrations_Success(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithSchema(GetTestDataFs()), WithDialect(dialect.Postgres()))
 
 	if err != nil {
 		t.Fatalf("Error creating migrator: %v", err)
@@ -153,12 +152,12 @@ func Test_ApplyMigrations_AllChecksumsApplied(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithSchema(GetTestDataFs()), WithDialect(dialect.Postgres()))
 
 	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
 	checksums := sqlmock.NewRows([]string{"script_name", "checksum"}).
-		AddRow("test1.sql", encode(migrator.scripts[0].Content)).
-		AddRow("test2.sql", encode(migrator.scripts[1].Content))
+		AddRow("test1.sql", encode(migrator.schemaScripts[0].Content)).
+		AddRow("test2.sql", encode(migrator.schemaScripts[1].Content))
 
 	mock.ExpectQuery(`SELECT EXISTS`).WillReturnRows(exists)
 	mock.ExpectQuery(`SELECT script_name, checksum FROM gsmt_migrations`).
@@ -181,11 +180,11 @@ func Test_ApplyMigrations_DifferentChecksumError(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithSchema(GetTestDataFs()), WithDialect(dialect.Postgres()))
 
 	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
 	checksums := sqlmock.NewRows([]string{"script_name", "checksum"}).
-		AddRow("test1.sql", encode(migrator.scripts[0].Content)).
+		AddRow("test1.sql", encode(migrator.schemaScripts[0].Content)).
 		AddRow("test2.sql", "1")
 
 	mock.ExpectQuery(`SELECT EXISTS`).WillReturnRows(exists)
@@ -209,7 +208,7 @@ func Test_ApplyMigrations_RollbackOnScriptExecuteError(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithSchema(GetTestDataFs()), WithDialect(dialect.Postgres()))
 	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
 	checksums := sqlmock.NewRows([]string{"script_name", "checksum"})
 
@@ -217,7 +216,7 @@ func Test_ApplyMigrations_RollbackOnScriptExecuteError(t *testing.T) {
 	mock.ExpectQuery(`SELECT script_name, checksum FROM gsmt_migrations`).
 		WillReturnRows(checksums)
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(migrator.scripts[0].Content)).WillReturnError(fmt.Errorf("Random error!"))
+	mock.ExpectExec(regexp.QuoteMeta(migrator.schemaScripts[0].Content)).WillReturnError(fmt.Errorf("Random error!"))
 	mock.ExpectRollback()
 
 	err = migrator.ApplyMigrations()
@@ -237,7 +236,7 @@ func Test_ApplyMigrations_RollbackOnMigrationRowInsertError(t *testing.T) {
 
 	defer db.Close()
 
-	migrator, err := New(db, WithRootDirectory(rootDirectory), WithDialect(dialect.NewPostgresDialect()))
+	migrator, err := New(db, WithSchema(GetTestDataFs()), WithDialect(dialect.Postgres()))
 
 	exists := sqlmock.NewRows([]string{"exists"}).AddRow("true")
 	checksums := sqlmock.NewRows([]string{"script_name", "checksum"})
@@ -246,7 +245,7 @@ func Test_ApplyMigrations_RollbackOnMigrationRowInsertError(t *testing.T) {
 	mock.ExpectQuery(`SELECT script_name, checksum FROM gsmt_migrations`).
 		WillReturnRows(checksums)
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(migrator.scripts[0].Content)).
+	mock.ExpectExec(regexp.QuoteMeta(migrator.schemaScripts[0].Content)).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO gsmt_migrations (checksum, execution_time_ms, script_name, script_content)`)).
 		WillReturnError(fmt.Errorf("Error inserting"))
@@ -267,24 +266,20 @@ func assertMockExpectations(t *testing.T, mock sqlmock.Sqlmock) {
 	}
 }
 
-func getScriptCount(directory string) (int, error) {
-	files, err := os.ReadDir(directory)
-	if err != nil {
-		return 0, fmt.Errorf("Error reading directory %s: %v", directory, err)
-	}
-
+func getScriptCount(directory fs.FS) (int, error) {
 	count := 0
-	for _, file := range files {
-		if ext := path.Ext(file.Name()); ext == ".sql" {
+	fs.WalkDir(directory, ".", func(path string, d fs.DirEntry, err error) error {
+		if filepath.Ext(d.Name()) == ".sql" {
 			count++
 		}
-	}
+		return nil
+	})
 
 	return count, nil
 }
 
 func addMigratorInteractions(mock sqlmock.Sqlmock, migrator *Migrator) {
-	for _, script := range migrator.scripts {
+	for _, script := range migrator.schemaScripts {
 		mock.ExpectBegin()
 		mock.ExpectExec(regexp.QuoteMeta(script.Content)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
