@@ -51,7 +51,7 @@ func AllTablesExist(db *sql.DB, tables ...string) (bool, error) {
 	}
 
 	placeholders := make([]string, len(tables))
-	args := make([]interface{}, len(tables))
+	args := make([]any, len(tables))
 
 	for i, table := range tables {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)

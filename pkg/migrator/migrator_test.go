@@ -51,9 +51,9 @@ func Test_ensureMetadataTables_ShouldBeSuccessful(t *testing.T) {
 	ctx := context.Background()
 	mockStore.On("SetupMetadataTables", ctx).ThenReturn(error(nil))
 	m, err := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		dataFS:   dataFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Data:   dataFS,
+		Store:  mockStore,
 	})
 
 	if err != nil {
@@ -75,9 +75,9 @@ func Test_ensureMetadataTables_FailOnErrorReturned(t *testing.T) {
 	mockStore := new(MockMetadataStore)
 	ctx := context.Background()
 	m, err := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		dataFS:   dataFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Data:   dataFS,
+		Store:  mockStore,
 	})
 
 	if err != nil {
@@ -111,8 +111,8 @@ func Test_migrateSchema_ShouldBeSuccessful(t *testing.T) {
 		ThenReturn(map[string]string{}, nil)
 
 	m, _ := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Store:  mockStore,
 	})
 
 	err := m.migrateSchema(ctx)
@@ -136,8 +136,8 @@ func Test_mirgateSchema_SuccessOnAllHashesApplied(t *testing.T) {
 		ThenReturn(hashes, nil)
 
 	m, _ := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Store:  mockStore,
 	})
 
 	err := m.migrateSchema(ctx)
@@ -177,8 +177,8 @@ func Test_migrateSchema_SuccessOnPartialRecordings(t *testing.T) {
 	}
 
 	m, _ := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Store:  mockStore,
 	})
 
 	err := m.migrateSchema(ctx)
@@ -200,8 +200,8 @@ func Test_migrateSchema_ErrorWhileFetchingAppliedChecksums(t *testing.T) {
 		ThenReturn(map[string]string{}, fmt.Errorf("Error fetching applied checksums"))
 
 	m, _ := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Store:  mockStore,
 	})
 
 	err := m.migrateSchema(ctx)
@@ -239,8 +239,8 @@ func Test_migrateSchema_ErrorWhileRecordingSchemaChanges(t *testing.T) {
 	}
 
 	m, _ := NewMigrator(MigratorOpts{
-		schemaFS: schemaFS,
-		store:    mockStore,
+		Schema: schemaFS,
+		Store:  mockStore,
 	})
 
 	err := m.migrateSchema(ctx)

@@ -16,8 +16,8 @@ type SQLMigrationStore struct {
 	dialect dialect.Dialect
 }
 
-func NewSQLStore(db *sql.DB, dialect dialect.Dialect) SQLMigrationStore {
-	return SQLMigrationStore{
+func NewSQLStore(db *sql.DB, dialect dialect.Dialect) *SQLMigrationStore {
+	return &SQLMigrationStore{
 		db:      db,
 		dialect: dialect,
 	}

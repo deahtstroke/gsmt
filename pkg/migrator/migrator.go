@@ -18,25 +18,25 @@ type Migrator struct {
 }
 
 type MigratorOpts struct {
-	store    store.MetadataStore
-	schemaFS fs.FS
-	dataFS   fs.FS
+	Store  store.MetadataStore
+	Schema fs.FS
+	Data   fs.FS
 }
 
 // Create a new migrator given the options available
 func NewMigrator(opts MigratorOpts) (*Migrator, error) {
-	if opts.schemaFS == nil {
+	if opts.Schema == nil {
 		return nil, fmt.Errorf("Schema file system is not declared")
 	}
 
-	if opts.store == nil {
+	if opts.Store == nil {
 		return nil, fmt.Errorf("Metadata store is nil")
 	}
 
 	return &Migrator{
-		schemaFS: opts.schemaFS,
-		dataFS:   opts.dataFS,
-		store:    opts.store,
+		schemaFS: opts.Schema,
+		dataFS:   opts.Data,
+		store:    opts.Store,
 	}, nil
 }
 
@@ -94,6 +94,10 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 }
 
 func (m *Migrator) migrateData(ctx context.Context) error {
+	if m.dataFS == nil {
+		return nil
+	}
+
 	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, data.DataMigrationsTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)

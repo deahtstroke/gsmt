@@ -9,6 +9,7 @@ import (
 
 	"github.com/deahtstroke/gsmt/pkg/dialect"
 	"github.com/deahtstroke/gsmt/pkg/migrator"
+	"github.com/deahtstroke/gsmt/pkg/store"
 
 	"github.com/testcontainers/testcontainers-go"
 
@@ -35,12 +36,15 @@ func Test_PostgresDialectMigrationsShouldBeSuccessful_NoEmbeddedFS(t *testing.T)
 		}
 	}()
 	fs := os.DirFS("./migrations/scripts/")
-	migrator, err := migrator.New(db, migrator.WithSchema(fs), migrator.WithDialect(dialect.Postgres()))
+	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+		Schema: fs,
+		Store:  store.NewSQLStore(db, dialect.Postgres()),
+	})
 	if err != nil {
 		t.Fatalf("Error creating migrator: %v", err)
 	}
 
-	err = migrator.ApplyMigrations()
+	err = migrator.ApplyMigrations(context.Background())
 
 	if err != nil {
 		t.Errorf("Error applying migrations: %v", err)
@@ -79,12 +83,15 @@ func Test_PostgresDialectMigrationsShouldBeSuccessful_EmbeddedFs(t *testing.T) {
 		}
 	}()
 
-	migrator, err := migrator.New(db, migrator.WithSchema(schemaFs), migrator.WithDialect(dialect.Postgres()))
+	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+		Schema: schemaFs,
+		Store:  store.NewSQLStore(db, dialect.Postgres()),
+	})
 	if err != nil {
 		t.Fatalf("Error creating migrator: %v", err)
 	}
 
-	err = migrator.ApplyMigrations()
+	err = migrator.ApplyMigrations(context.Background())
 
 	if err != nil {
 		t.Errorf("Error applying migrations: %v", err)
@@ -114,12 +121,16 @@ func Test_PostgresDialect_MigationsWithDataShouldBeSuccessul(t *testing.T) {
 		}
 	}()
 
-	migrator, err := migrator.New(db, migrator.WithSchema(schemaFs), migrator.WithData(dataFs), migrator.WithDialect(dialect.Postgres()))
+	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+		Schema: schemaFs,
+		Data:   dataFs,
+		Store:  store.NewSQLStore(db, dialect.Postgres()),
+	})
 	if err != nil {
 		t.Errorf("Error creating migrator: %s", err)
 	}
 
-	err = migrator.ApplyMigrations()
+	err = migrator.ApplyMigrations(context.Background())
 	if err != nil {
 		t.Errorf("Error applying migrations: %s", err)
 	}
@@ -141,7 +152,7 @@ func Test_PostgresDialect_MigationsWithDataShouldBeSuccessul(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if departmentCount != 1 {
+	if departmentCount != 2 {
 		t.Error("Wrong department count")
 	}
 
@@ -154,7 +165,7 @@ func Test_PostgresDialect_MigationsWithDataShouldBeSuccessul(t *testing.T) {
 		t.Error(err)
 	}
 
-	if employeeCount < 2 {
+	if employeeCount != 4 {
 		t.Error("Employee count is less than the actual amount")
 	}
 }
