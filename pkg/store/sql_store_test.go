@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/deahtstroke/gsmt/pkg/data"
 	"github.com/deahtstroke/gsmt/pkg/dialect"
-	"github.com/deahtstroke/gsmt/pkg/schema"
 )
 
 func Test_CreateTableIfNotExistsShouldBeSuccessful(t *testing.T) {
@@ -196,7 +196,7 @@ func Test_GetAppliedChecksums_Success(t *testing.T) {
 	store := NewSQLStore(db, dialect.Postgres())
 	ctx := context.Background()
 
-	result, err := store.GetAppliedChecksums(ctx, schema.SchemaMigrationsTable)
+	result, err := store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
 	if err != nil {
 		t.Errorf("Not expecting error, found: %v", err)
 	}
@@ -228,7 +228,7 @@ func Test_GetAppliedChecksums_SucessEmptyMap(t *testing.T) {
 	store := NewSQLStore(db, dialect.Postgres())
 	ctx := context.Background()
 
-	result, err := store.GetAppliedChecksums(ctx, schema.SchemaMigrationsTable)
+	result, err := store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
 	if err != nil {
 		t.Errorf("Not expecting error, found: %s", err)
 	}
@@ -255,9 +255,317 @@ func Test_GetAppliedChecksums_ErrorQueryingDatabase(t *testing.T) {
 	store := NewSQLStore(db, dialect.Postgres())
 	ctx := context.Background()
 
-	_, err = store.GetAppliedChecksums(ctx, schema.SchemaMigrationsTable)
+	_, err = store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
 	if err == nil {
 		t.Errorf("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not met: %v", err)
+	}
+}
+
+func Test_RecordSchemaScript_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "123412",
+		Content: "SELECT 1",
+		Name:    "v1__hello.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.SchemaMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordSchemaScript(ctx, script)
+	if err != nil {
+		t.Errorf("Not expecting error, found: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not: %v", err)
+	}
+}
+
+func Test_RecordSchemaScript_ErrorBeginningTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "123412",
+		Content: "SELECT 1",
+		Name:    "v1__hello.sql",
+	}
+
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("Error beginning transcation"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordSchemaScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not: %v", err)
+	}
+}
+
+func Test_RecordSchemaScript_ErrorInsertingScript(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "123412",
+		Content: "SELECT 1",
+		Name:    "v1__hello.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnError(fmt.Errorf("Error inserting content"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordSchemaScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not: %v", err)
+	}
+}
+
+func Test_RecordSchemaScript_ErrorInsertingToSchemaTable(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "123412",
+		Content: "SELECT 1",
+		Name:    "v1__hello.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.SchemaMigrationsTable)).WillReturnError(fmt.Errorf("Error inserting to schema table"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordSchemaScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not: %v", err)
+	}
+}
+
+func Test_RecordSchemaScript_ErrorCommitingTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "123412",
+		Content: "SELECT 1",
+		Name:    "v1__hello.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.SchemaMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit().WillReturnError(fmt.Errorf("Error commiting tx"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordSchemaScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not met: %v", err)
+	}
+}
+
+func Test_RecordDataScript_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "12308768912",
+		Content: "SELECT 1",
+		Name:    "data_employee.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.DataMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordDataScript(ctx, script)
+	if err != nil {
+		t.Errorf("Not expecting error, got: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not met: %v", err)
+	}
+}
+
+func Test_RecordDataScript_ErrorBeginningTx(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "12308768912",
+		Content: "SELECT 1",
+		Name:    "data_employee.sql",
+	}
+
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("Error begining transaction"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordDataScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not met: %v", err)
+	}
+}
+
+func Test_RecordDataScript_ErrorRecordingDataScript(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "12308768912",
+		Content: "SELECT 1",
+		Name:    "data_employee.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnError(fmt.Errorf("Error inserting data"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordDataScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not met: %v", err)
+	}
+}
+
+func Test_RecordDataScript_ErrorInsertingToDataTable(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "12308768912",
+		Content: "SELECT 1",
+		Name:    "data_employee.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.DataMigrationsTable)).WillReturnError(fmt.Errorf("Error inserting into gsmt-data-migrations"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordDataScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Mock expectations were not met: %v", err)
+	}
+}
+
+func Test_RecordDataScript_ErrorCommitingTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Errorf("Error creating sqlmock: %s", err)
+	}
+
+	defer db.Close()
+
+	script := data.MigrationScript{
+		Hash:    "12308768912",
+		Content: "SELECT 1",
+		Name:    "data_employee.sql",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.DataMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit().WillReturnError(fmt.Errorf("Error commiting transaction"))
+
+	store := NewSQLStore(db, dialect.Postgres())
+	ctx := context.Background()
+
+	err = store.RecordDataScript(ctx, script)
+	if err == nil {
+		t.Error("Expecting error, found none")
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {

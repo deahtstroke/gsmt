@@ -3,7 +3,7 @@ package dialect
 import (
 	"fmt"
 
-	"github.com/deahtstroke/gsmt/pkg/schema"
+	"github.com/deahtstroke/gsmt/pkg/data"
 )
 
 type PostgreSQLDialect struct{}
@@ -22,7 +22,7 @@ func SchemaMigrationTableDDL() string {
 		script_name TEXT NOT NULL,
 		script_content TEXT
 	);
-	`, schema.SchemaMigrationsTable)
+	`, data.SchemaMigrationsTable)
 }
 
 func DataMigrationTableDDL() string {
@@ -34,13 +34,13 @@ func DataMigrationTableDDL() string {
 	execution_time_ms BIGINT,
 	script_name TEXT NOT NULL
 	);
-	`, schema.DataMigrationsTable)
+	`, data.DataMigrationsTable)
 }
 
 func (ps PostgreSQLDialect) GetMetadataTables() map[string]string {
 	return map[string]string{
-		schema.SchemaMigrationsTable: SchemaMigrationTableDDL(),
-		schema.DataMigrationsTable:   DataMigrationTableDDL(),
+		data.SchemaMigrationsTable: SchemaMigrationTableDDL(),
+		data.DataMigrationsTable:   DataMigrationTableDDL(),
 	}
 }
 

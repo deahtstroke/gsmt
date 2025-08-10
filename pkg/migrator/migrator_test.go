@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/deahtstroke/duck-assert/mock"
-	"github.com/deahtstroke/gsmt/pkg/schema"
+	"github.com/deahtstroke/gsmt/pkg/data"
 	"github.com/deahtstroke/gsmt/pkg/utils"
 )
 
@@ -34,8 +34,13 @@ func (m *MockMetadataStore) GetAppliedChecksums(ctx context.Context, table strin
 	return ret.Get(0).(map[string]string), ret.Error(1)
 }
 
-func (m *MockMetadataStore) RecordSchemaScript(ctx context.Context, script schema.MigrationScript) error {
+func (m *MockMetadataStore) RecordSchemaScript(ctx context.Context, script data.MigrationScript) error {
 	ret := m.Called("RecordSchemaScript", ctx, script)
+	return ret.Error(0)
+}
+
+func (m *MockMetadataStore) RecordDataScript(ctx context.Context, script data.MigrationScript) error {
+	ret := m.Called("RecordDataScript", ctx, script)
 	return ret.Error(0)
 }
 
@@ -97,12 +102,12 @@ func Test_migrateSchema_ShouldBeSuccessful(t *testing.T) {
 	hashes := getScriptHashes(schemaFS)
 
 	for k := range hashes {
-		mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s schema.MigrationScript) bool {
+		mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s data.MigrationScript) bool {
 			return s.Hash == hashes[k]
 		})).ThenReturn(nil)
 	}
 
-	mockStore.On("GetAppliedChecksums", ctx, schema.SchemaMigrationsTable).
+	mockStore.On("GetAppliedChecksums", ctx, data.SchemaMigrationsTable).
 		ThenReturn(map[string]string{}, nil)
 
 	m, _ := NewMigrator(MigratorOpts{
@@ -115,7 +120,7 @@ func Test_migrateSchema_ShouldBeSuccessful(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 
-	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, schema.SchemaMigrationsTable)
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.SchemaMigrationsTable)
 	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
 	mockStore.AssertNumberOfCalls(t, "RecordSchemaScript", len(hashes))
 }
@@ -127,7 +132,7 @@ func Test_mirgateSchema_SuccessOnAllHashesApplied(t *testing.T) {
 
 	hashes := getScriptHashes(schemaFS)
 
-	mockStore.On("GetAppliedChecksums", ctx, schema.SchemaMigrationsTable).
+	mockStore.On("GetAppliedChecksums", ctx, data.SchemaMigrationsTable).
 		ThenReturn(hashes, nil)
 
 	m, _ := NewMigrator(MigratorOpts{
@@ -140,7 +145,7 @@ func Test_mirgateSchema_SuccessOnAllHashesApplied(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 
-	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, schema.SchemaMigrationsTable)
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.SchemaMigrationsTable)
 	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
 	mockStore.AssertNotCalled(t, "RecordSchemaScript")
 }
@@ -152,22 +157,21 @@ func Test_migrateSchema_SuccessOnPartialRecordings(t *testing.T) {
 	hashes := getScriptHashes(schemaFS)
 
 	count := 0
-	for h := range hashes {
+	for _, hash := range hashes {
 		if count%2 == 0 {
-			hashes[h] = ""
+			mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s data.MigrationScript) bool {
+				return s.Hash == hash
+			})).ThenReturn(nil)
 		}
 		count++
 	}
-
-	mockStore.On("GetAppliedChecksums", ctx, schema.SchemaMigrationsTable).
-		ThenReturn(map[string]string{}, fmt.Errorf("Error fetching applied checksums"))
+	mockStore.On("GetAppliedChecksums", ctx, data.SchemaMigrationsTable).
+		ThenReturn(hashes, nil)
 
 	count = 0
-	for h := range hashes {
-		if count%2 != 0 {
-			mockStore.On("RecordSchemaScript", mock.MatchedBy(func(s schema.MigrationScript) bool {
-				return s.Hash == hashes[h]
-			}))
+	for k := range hashes {
+		if count%2 == 0 {
+			delete(hashes, k)
 		}
 		count++
 	}
@@ -178,9 +182,13 @@ func Test_migrateSchema_SuccessOnPartialRecordings(t *testing.T) {
 	})
 
 	err := m.migrateSchema(ctx)
-	if err == nil {
-		t.Errorf("Expecting error, found none")
+	if err != nil {
+		t.Errorf("Not expecting error, got: %v", err)
 	}
+
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.SchemaMigrationsTable)
+	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
+	mockStore.AssertNumberOfCalls(t, "RecordSchemaScript", 1)
 }
 
 func Test_migrateSchema_ErrorWhileFetchingAppliedChecksums(t *testing.T) {
@@ -188,7 +196,7 @@ func Test_migrateSchema_ErrorWhileFetchingAppliedChecksums(t *testing.T) {
 	mockStore := new(MockMetadataStore)
 	ctx := context.Background()
 
-	mockStore.On("GetAppliedChecksums", ctx, schema.SchemaMigrationsTable).
+	mockStore.On("GetAppliedChecksums", ctx, data.SchemaMigrationsTable).
 		ThenReturn(map[string]string{}, fmt.Errorf("Error fetching applied checksums"))
 
 	m, _ := NewMigrator(MigratorOpts{
@@ -201,7 +209,7 @@ func Test_migrateSchema_ErrorWhileFetchingAppliedChecksums(t *testing.T) {
 		t.Errorf("Expecting error, found none")
 	}
 
-	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, schema.SchemaMigrationsTable)
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.SchemaMigrationsTable)
 	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
 	mockStore.AssertNotCalled(t, "RecordSchemaScript")
 }
@@ -211,7 +219,7 @@ func Test_migrateSchema_ErrorWhileRecordingSchemaChanges(t *testing.T) {
 	mockStore := new(MockMetadataStore)
 	ctx := context.Background()
 
-	mockStore.On("GetAppliedChecksums", ctx, schema.SchemaMigrationsTable).
+	mockStore.On("GetAppliedChecksums", ctx, data.SchemaMigrationsTable).
 		ThenReturn(map[string]string{}, nil)
 
 	hashes := getScriptHashes(schemaFS)
@@ -219,11 +227,11 @@ func Test_migrateSchema_ErrorWhileRecordingSchemaChanges(t *testing.T) {
 	count := 0
 	for k := range hashes {
 		if count%2 == 0 {
-			mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s schema.MigrationScript) bool {
+			mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s data.MigrationScript) bool {
 				return s.Hash == hashes[k]
 			})).ThenReturn(fmt.Errorf("Error recording script with hash %s", hashes[k]))
 		}
-		mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s schema.MigrationScript) bool {
+		mockStore.On("RecordSchemaScript", ctx, mock.MatchedBy(func(s data.MigrationScript) bool {
 			return s.Hash == hashes[k]
 		})).ThenReturn(nil)
 
@@ -241,9 +249,111 @@ func Test_migrateSchema_ErrorWhileRecordingSchemaChanges(t *testing.T) {
 		t.Errorf("Expecting error, found none")
 	}
 
-	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, schema.SchemaMigrationsTable)
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.SchemaMigrationsTable)
 	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
 	mockStore.AssertNumberOfCalls(t, "RecordSchemaScript", len(hashes)-1)
+}
+
+func Test_migrateData_SuccessOnAllDataApplied(t *testing.T) {
+	dataFS := os.DirFS("./testdata/data")
+	mockStore := new(MockMetadataStore)
+	ctx := context.Background()
+
+	mockStore.On("GetAppliedChecksums", ctx, data.DataMigrationsTable).
+		ThenReturn(map[string]string{}, nil)
+
+	hashes := getScriptHashes(dataFS)
+	for _, hash := range hashes {
+		mockStore.On("RecordDataScript", ctx, mock.MatchedBy(func(d data.MigrationScript) bool {
+			return d.Hash == hash
+		})).ThenReturn(nil)
+	}
+
+	sut := Migrator{
+		store:  mockStore,
+		dataFS: dataFS,
+	}
+
+	err := sut.migrateData(ctx)
+	if err != nil {
+		t.Errorf("Error migrating data: %v", err)
+	}
+
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.DataMigrationsTable)
+	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
+	mockStore.AssertNumberOfCalls(t, "RecordDataScript", len(hashes))
+}
+
+func Test_migrateData_SuccessNoDataApplied(t *testing.T) {
+	dataFS := os.DirFS("./testdata/data")
+	mockStore := new(MockMetadataStore)
+	ctx := context.Background()
+	hashes := getScriptHashes(dataFS)
+
+	for _, hash := range hashes {
+		mockStore.On("RecordDataScript", ctx, mock.MatchedBy(func(d data.MigrationScript) bool {
+			return d.Hash == hash
+		})).ThenReturn(nil)
+	}
+
+	mockStore.On("GetAppliedChecksums", ctx, data.DataMigrationsTable).
+		ThenReturn(hashes, nil)
+
+	sut := Migrator{
+		store:  mockStore,
+		dataFS: dataFS,
+	}
+
+	err := sut.migrateData(ctx)
+	if err != nil {
+		t.Errorf("Error migrating data: %v", err)
+	}
+
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.DataMigrationsTable)
+	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
+	mockStore.AssertNotCalled(t, "RecordDataScript")
+}
+
+func Test_migrateData_SuccessPartialDataApplied(t *testing.T) {
+	dataFS := os.DirFS("./testdata/data")
+	mockStore := new(MockMetadataStore)
+	ctx := context.Background()
+	hashes := getScriptHashes(dataFS)
+
+	count := 0
+	for _, hash := range hashes {
+		if count%2 == 0 {
+			mockStore.On("RecordDataScript", ctx, mock.MatchedBy(func(d data.MigrationScript) bool {
+				return d.Hash == hash
+			})).ThenReturn(nil)
+		}
+		count++
+	}
+
+	count = 0
+	for k := range hashes {
+		if count%2 == 0 {
+			delete(hashes, k)
+		}
+		count++
+	}
+
+	mockStore.On("GetAppliedChecksums", ctx, data.DataMigrationsTable).
+		ThenReturn(hashes, nil)
+
+	sut := Migrator{
+		store:  mockStore,
+		dataFS: dataFS,
+	}
+
+	err := sut.migrateData(ctx)
+	if err != nil {
+		t.Errorf("Error migrating data: %v", err)
+	}
+
+	mockStore.AssertCalled(t, "GetAppliedChecksums", ctx, data.DataMigrationsTable)
+	mockStore.AssertNumberOfCalls(t, "GetAppliedChecksums", 1)
+	mockStore.AssertNumberOfCalls(t, "RecordDataScript", 1)
 }
 
 func getScriptHashes(dir fs.FS) map[string]string {

@@ -1,4 +1,4 @@
-package schema
+package data
 
 type MigrationScript struct {
 	Name    string

@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	"github.com/deahtstroke/gsmt/pkg/schema"
+	"github.com/deahtstroke/gsmt/pkg/data"
 	"github.com/deahtstroke/gsmt/pkg/store"
 	"github.com/deahtstroke/gsmt/pkg/utils"
 )
@@ -60,12 +60,12 @@ func (m *Migrator) ensureMetadataTables(ctx context.Context) error {
 }
 
 func (m *Migrator) migrateSchema(ctx context.Context) error {
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, schema.SchemaMigrationsTable)
+	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
 
-	err = fs.WalkDir(m.schemaFS, ".", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(m.schemaFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if filepath.Ext(path) == ".sql" {
 			content, err := utils.ReadFileContent(m.schemaFS, path)
 			if err != nil {
@@ -79,34 +79,24 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 				}
 				return nil
 			} else {
-				err := m.store.RecordSchemaScript(ctx, schema.MigrationScript{
+				return m.store.RecordSchemaScript(ctx, data.MigrationScript{
 					Name:    d.Name(),
 					Content: content,
 					Hash:    hash,
 				})
-				if err != nil {
-					return err
-				}
-				return nil
 			}
 		}
 		return nil
 	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (m *Migrator) migrateData(ctx context.Context) error {
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, schema.DataMigrationsTable)
+	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, data.DataMigrationsTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
 
-	err = fs.WalkDir(m.dataFS, ".", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(m.dataFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if filepath.Ext(path) == ".sql" {
 			content, err := utils.ReadFileContent(m.dataFS, path)
 			if err != nil {
@@ -119,7 +109,7 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 				}
 				return nil
 			} else {
-				m.store.RecordSchemaScript(ctx, schema.MigrationScript{
+				return m.store.RecordDataScript(ctx, data.MigrationScript{
 					Name:    d.Name(),
 					Content: content,
 					Hash:    hash,
@@ -128,5 +118,4 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 		}
 		return nil
 	})
-	return nil
 }
