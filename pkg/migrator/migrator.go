@@ -23,6 +23,7 @@ type MigratorOpts struct {
 	dataFS   fs.FS
 }
 
+// Create a new migrator given the options available
 func NewMigrator(opts MigratorOpts) (*Migrator, error) {
 	if opts.schemaFS == nil {
 		return nil, fmt.Errorf("Schema file system is not declared")
@@ -66,7 +67,8 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 	}
 
 	return fs.WalkDir(m.schemaFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if filepath.Ext(path) == ".sql" {
+		switch filepath.Ext(path) {
+		case ".sql":
 			content, err := utils.ReadFileContent(m.schemaFS, path)
 			if err != nil {
 				return err
@@ -75,7 +77,7 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 			if checksum, exists := appliedMigrations[d.Name()]; exists {
 
 				if hash != checksum {
-					return fmt.Errorf("Schema migration with name %s has a different checksum: Existing: %s. New one: %s", path, checksum, hash)
+					return fmt.Errorf("Existing schema migration with name %s has a different checksum: Existing: %s. New one: %s", path, checksum, hash)
 				}
 				return nil
 			} else {
@@ -85,8 +87,9 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 					Hash:    hash,
 				})
 			}
+		default:
+			return nil
 		}
-		return nil
 	})
 }
 
@@ -97,17 +100,18 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 	}
 
 	return fs.WalkDir(m.dataFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if filepath.Ext(path) == ".sql" {
+		switch filepath.Ext(path) {
+		case ".sql":
 			content, err := utils.ReadFileContent(m.dataFS, path)
 			if err != nil {
 				return err
 			}
 			hash := utils.Encode(content)
 			if checksum, exists := appliedMigrations[d.Name()]; exists {
-				if hash != checksum {
-					return fmt.Errorf("Data migrations with name %s has a different checksum: Exising: %s. New one: %s", path, checksum, hash)
+				if hash == checksum {
+					return nil
 				}
-				return nil
+				return fmt.Errorf("Existing data migration with name %s has a different checksum: Exising: %s. New one: %s", path, checksum, hash)
 			} else {
 				return m.store.RecordDataScript(ctx, data.MigrationScript{
 					Name:    d.Name(),
@@ -115,7 +119,8 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 					Hash:    hash,
 				})
 			}
+		default:
+			return nil
 		}
-		return nil
 	})
 }

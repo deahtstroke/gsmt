@@ -1,4 +1,4 @@
-INSERT INTO example (value)
+INSERT INTO example1 (value)
     VALUES (1),
     (2),
     (3),
