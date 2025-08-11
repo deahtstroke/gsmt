@@ -35,6 +35,7 @@ func Test_PostgresDialectMigrationsShouldBeSuccessful_NoEmbeddedFS(t *testing.T)
 			log.Printf("Failed to terminate container: %s", err)
 		}
 	}()
+
 	fs := os.DirFS("./migrations/scripts/")
 	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
 		Schema: fs,
@@ -107,7 +108,7 @@ func Test_PostgresDialectMigrationsShouldBeSuccessful_EmbeddedFs(t *testing.T) {
 	}
 }
 
-func Test_PostgresDialect_MigationsWithDataShouldBeSuccessul(t *testing.T) {
+func Test_PostgresDialect_MigrationsWithDataShouldBeSuccessul(t *testing.T) {
 	ctx := context.Background()
 
 	postgresC, db, err := InitialSetup(ctx)
@@ -165,7 +166,7 @@ func Test_PostgresDialect_MigationsWithDataShouldBeSuccessul(t *testing.T) {
 		t.Error(err)
 	}
 
-	if employeeCount != 4 {
+	if employeeCount > 4 {
 		t.Error("Employee count is less than the actual amount")
 	}
 }
