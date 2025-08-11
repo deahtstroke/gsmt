@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS department (
     id serial PRIMARY KEY,
     name varchar(255) NOT NULL,
-    phoneNumber int NOT NULL
+    phoneNumber text NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS employee (
