@@ -102,7 +102,7 @@ func main() {
 ## Migrator Configuration
 
 | Option | Description | Required |
-| ------ | ----------- | :--------: |
+| :----: | ----------- | :--------: |
 | Store  | Metadata store for applied migrations, changes based on SQL dialect | ✅ |
 | Schema | `fs.FS` filesystem that contains the schema migrations | ✅ |
 | Data   | `fs.FS` filesystem that contains data migrations | ❌ |
@@ -110,3 +110,8 @@ func main() {
 ## Contributing
 
 Pull requests are welcome! Please ensure tests pass before submitting.
+
+## License
+
+This project is licensed under the terms of the MIT License.  
+See the [LICENSE](LICENSE) file for details.
