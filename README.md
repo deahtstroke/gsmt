@@ -14,7 +14,8 @@ at runtime.
 
 ## Project Status
 
-**Under Active Development**
+### Under Active Development
+
 This project is still in its early stages. The core migrations functionality is
 implemented and stable for basic usage but:
 
@@ -23,7 +24,7 @@ implemented and stable for basic usage but:
 - There are many missing dialects, the only current support is for PostgreSQL
 - Documentation is evolving
 
-**Current goals:**
+### Current goals
 
 - Finalize public API
 - Improve test coverage
