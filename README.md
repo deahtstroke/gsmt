@@ -70,7 +70,7 @@ func main() {
 ## Migrator Configuration
 
 | option | Description | required |
-| ------ | ----------- | -------- |
+| ------ | ----------- | :--------: |
 | Store  | Metadata store for applied migrations, changes based on SQL dialect | ✅ |
 | Schema | `fs.FS` filesystem that contains the schema migrations | ✅ |
 | Data   | `fs.FS` filesystem that contains data migrations | ❌ |
