@@ -28,6 +28,21 @@ go get github.com/deahtstroke/gsmt@latest
 
 ### Basic Example Using Embedded Filesystem
 
+Given a file system that looks like this
+
+``` pgsql
+main.go
+migrations/
+├── schema/
+│   ├── 001_create_users_table.sql
+│   └── 002_add_index_to_users.sql
+└── data/
+    ├── 001_seed_users.sql
+    └── 002_update_roles.sql
+go.mod
+go.sum
+```
+
 ```go
 package main
 
@@ -69,7 +84,7 @@ func main() {
 
 ## Migrator Configuration
 
-| option | Description | required |
+| Option | Description | Required |
 | ------ | ----------- | :--------: |
 | Store  | Metadata store for applied migrations, changes based on SQL dialect | ✅ |
 | Schema | `fs.FS` filesystem that contains the schema migrations | ✅ |
