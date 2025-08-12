@@ -12,6 +12,23 @@ at runtime.
 - Supports both schema and data migrations
 - Works with both embedded and local filesystem `fs.FS`
 
+## Project Status
+
+**Under Active Development**
+This project is still in its early stages. The core migrations functionality is
+implemented and stable for basic usage but:
+
+- API may still change
+- Some planned feature (e.g., rollback support, CLI interface) are not yet implemented
+- There are many missing dialects, the only current support is for PostgreSQL
+- Documentation is evolving
+
+**Current goals:**
+
+- Finalize public API
+- Improve test coverage
+- Add support for more database dialects
+
 ## Installation
 
 ```bash
@@ -89,3 +106,7 @@ func main() {
 | Store  | Metadata store for applied migrations, changes based on SQL dialect | ✅ |
 | Schema | `fs.FS` filesystem that contains the schema migrations | ✅ |
 | Data   | `fs.FS` filesystem that contains data migrations | ❌ |
+
+## Contributing
+
+Pull requests are welcome! Please ensure tests pass before submitting.
