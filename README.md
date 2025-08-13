@@ -76,7 +76,7 @@ import (
 //go:embed migrations/schema
 var schemaFS embed.FS
 
-//go:embed mirgations/data
+//go:embed migrations/data
 var dataFS embed.FS
 
 func main() {
