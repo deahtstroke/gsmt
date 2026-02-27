@@ -1,4 +1,4 @@
-package data
+package gsmt
 
 type MigrationScript struct {
 	Name    string

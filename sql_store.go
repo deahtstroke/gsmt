@@ -1,4 +1,4 @@
-package store
+package gsmt
 
 import (
 	"context"
@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/deahtstroke/gsmt/pkg/data"
-	"github.com/deahtstroke/gsmt/pkg/dialect"
 )
 
 type SQLMigrationStore struct {
 	db      *sql.DB
-	dialect dialect.Dialect
+	dialect Dialect
 }
 
-func NewSQLStore(db *sql.DB, dialect dialect.Dialect) *SQLMigrationStore {
+func NewSQLStore(db *sql.DB, dialect Dialect) *SQLMigrationStore {
 	return &SQLMigrationStore{
 		db:      db,
 		dialect: dialect,
@@ -75,7 +72,7 @@ func (ms *SQLMigrationStore) GetAppliedChecksums(ctx context.Context, table stri
 	return applied, nil
 }
 
-func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script data.MigrationScript) error {
+func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script MigrationScript) error {
 	tx, err := ms.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("Error beginning transaction for script [%s]: %v", script.Name, err)
@@ -91,7 +88,7 @@ func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script data
 	recordScriptQuery := fmt.Sprintf(`
 			INSERT INTO %s (checksum, execution_time_ms, script_name, script_content)
 			VALUES (%s, %s, %s, %s)
-		`, data.SchemaMigrationsTable, ms.dialect.Placeholder(1), ms.dialect.Placeholder(2), ms.dialect.Placeholder(3), ms.dialect.Placeholder(4))
+		`, SchemaMigrationsTable, ms.dialect.Placeholder(1), ms.dialect.Placeholder(2), ms.dialect.Placeholder(3), ms.dialect.Placeholder(4))
 
 	_, err = tx.ExecContext(ctx, recordScriptQuery, script.Hash, time.Since(start).Milliseconds(), script.Name, script.Content)
 	if err != nil {
@@ -102,7 +99,7 @@ func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script data
 	return err
 }
 
-func (ms *SQLMigrationStore) RecordDataScript(ctx context.Context, script data.MigrationScript) error {
+func (ms *SQLMigrationStore) RecordDataScript(ctx context.Context, script MigrationScript) error {
 	tx, err := ms.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("Error beginning transaction for script [%s]: %v", script.Name, err)
@@ -118,7 +115,7 @@ func (ms *SQLMigrationStore) RecordDataScript(ctx context.Context, script data.M
 	recordScriptQuery := fmt.Sprintf(`
 		INSERT INTO %s (checksum, execution_time_ms, script_name)
 		VALUES (%s, %s, %s)
-		`, data.DataMigrationsTable, ms.dialect.Placeholder(1), ms.dialect.Placeholder(2), ms.dialect.Placeholder(3))
+		`, DataMigrationsTable, ms.dialect.Placeholder(1), ms.dialect.Placeholder(2), ms.dialect.Placeholder(3))
 
 	_, err = tx.ExecContext(ctx, recordScriptQuery, script.Hash, time.Since(start).Milliseconds(), script.Name)
 	if err != nil {

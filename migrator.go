@@ -1,24 +1,20 @@
-package migrator
+package gsmt
 
 import (
 	"context"
 	"fmt"
 	"io/fs"
 	"path/filepath"
-
-	"github.com/deahtstroke/gsmt/pkg/data"
-	"github.com/deahtstroke/gsmt/pkg/store"
-	"github.com/deahtstroke/gsmt/pkg/utils"
 )
 
 type Migrator struct {
-	store    store.MetadataStore
+	store    MetadataStore
 	schemaFS fs.FS
 	dataFS   fs.FS
 }
 
 type MigratorOpts struct {
-	Store  store.MetadataStore
+	Store  MetadataStore
 	Schema fs.FS
 	Data   fs.FS
 }
@@ -61,7 +57,7 @@ func (m *Migrator) ensureMetadataTables(ctx context.Context) error {
 }
 
 func (m *Migrator) migrateSchema(ctx context.Context) error {
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
+	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, SchemaMigrationsTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
@@ -69,11 +65,11 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 	return fs.WalkDir(m.schemaFS, ".", func(path string, d fs.DirEntry, err error) error {
 		switch filepath.Ext(path) {
 		case ".sql":
-			content, err := utils.ReadFileContent(m.schemaFS, path)
+			content, err := ReadFileContent(m.schemaFS, path)
 			if err != nil {
 				return err
 			}
-			hash := utils.Encode(content)
+			hash := Encode(content)
 			if checksum, exists := appliedMigrations[d.Name()]; exists {
 
 				if hash != checksum {
@@ -81,7 +77,7 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 				}
 				return nil
 			} else {
-				return m.store.RecordSchemaScript(ctx, data.MigrationScript{
+				return m.store.RecordSchemaScript(ctx, MigrationScript{
 					Name:    d.Name(),
 					Content: content,
 					Hash:    hash,
@@ -98,7 +94,7 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 		return nil
 	}
 
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, data.DataMigrationsTable)
+	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, DataMigrationsTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
@@ -106,18 +102,18 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 	return fs.WalkDir(m.dataFS, ".", func(path string, d fs.DirEntry, err error) error {
 		switch filepath.Ext(path) {
 		case ".sql":
-			content, err := utils.ReadFileContent(m.dataFS, path)
+			content, err := ReadFileContent(m.dataFS, path)
 			if err != nil {
 				return err
 			}
-			hash := utils.Encode(content)
+			hash := Encode(content)
 			if checksum, exists := appliedMigrations[d.Name()]; exists {
 				if hash == checksum {
 					return nil
 				}
 				return fmt.Errorf("Existing data migration with name %s has a different checksum: Exising: %s. New one: %s", path, checksum, hash)
 			} else {
-				return m.store.RecordDataScript(ctx, data.MigrationScript{
+				return m.store.RecordDataScript(ctx, MigrationScript{
 					Name:    d.Name(),
 					Content: content,
 					Hash:    hash,

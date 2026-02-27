@@ -1,4 +1,4 @@
-package store
+package gsmt
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/deahtstroke/gsmt/pkg/data"
-	"github.com/deahtstroke/gsmt/pkg/dialect"
 )
 
 func Test_CreateTableIfNotExistsShouldBeSuccessful(t *testing.T) {
@@ -34,7 +32,7 @@ func Test_CreateTableIfNotExistsShouldBeSuccessful(t *testing.T) {
 	);
 	`
 	ctx := context.Background()
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	err = store.createTableIfNotExists(ctx, "some_table", ddl)
 
 	if err != nil {
@@ -69,7 +67,7 @@ func Test_CreateTableIfNotExists_ErrorWhenDDLIsEmpty(t *testing.T) {
 			}
 
 			defer db.Close()
-			store := NewSQLStore(db, dialect.Postgres())
+			store := NewSQLStore(db, Postgres())
 			ctx := context.Background()
 			err = store.createTableIfNotExists(ctx, "some_table", test.ddl)
 
@@ -100,7 +98,7 @@ func Test_CreateTableIfNotExists_ShouldNotExecuteDDLIfTableExists(t *testing.T) 
 	);
 	`
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 	err = store.createTableIfNotExists(ctx, "some_table", ddl)
 
@@ -131,7 +129,7 @@ func Test_CreateTableIfNotExists_ErrorWhenQueryingExists(t *testing.T) {
 	);
 	`
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 	err = store.createTableIfNotExists(ctx, "some_table", ddl)
 
@@ -166,7 +164,7 @@ func Test_CreateTableIfNotExists_ErrorWhenExecutingDDL(t *testing.T) {
 	),
 	`
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 	err = store.createTableIfNotExists(ctx, "some_table", ddl)
 
@@ -193,10 +191,10 @@ func Test_GetAppliedChecksums_Success(t *testing.T) {
 
 	mock.ExpectQuery("SELECT script_name, checksum").WillReturnRows(rows)
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
-	result, err := store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
+	result, err := store.GetAppliedChecksums(ctx, SchemaMigrationsTable)
 	if err != nil {
 		t.Errorf("Not expecting error, found: %v", err)
 	}
@@ -225,10 +223,10 @@ func Test_GetAppliedChecksums_SucessEmptyMap(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"script_name", "checksum"})
 	mock.ExpectQuery("SELECT script_name, checksum").WillReturnRows(rows)
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
-	result, err := store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
+	result, err := store.GetAppliedChecksums(ctx, SchemaMigrationsTable)
 	if err != nil {
 		t.Errorf("Not expecting error, found: %s", err)
 	}
@@ -252,10 +250,10 @@ func Test_GetAppliedChecksums_ErrorQueryingDatabase(t *testing.T) {
 
 	mock.ExpectQuery("SELECT script_name, checksum").WillReturnError(fmt.Errorf("Error querying checksums"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
-	_, err = store.GetAppliedChecksums(ctx, data.SchemaMigrationsTable)
+	_, err = store.GetAppliedChecksums(ctx, SchemaMigrationsTable)
 	if err == nil {
 		t.Errorf("Expecting error, found none")
 	}
@@ -273,7 +271,7 @@ func Test_RecordSchemaScript_Success(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "123412",
 		Content: "SELECT 1",
 		Name:    "v1__hello.sql",
@@ -281,10 +279,10 @@ func Test_RecordSchemaScript_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.SchemaMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", SchemaMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordSchemaScript(ctx, script)
@@ -305,7 +303,7 @@ func Test_RecordSchemaScript_ErrorBeginningTransaction(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "123412",
 		Content: "SELECT 1",
 		Name:    "v1__hello.sql",
@@ -313,7 +311,7 @@ func Test_RecordSchemaScript_ErrorBeginningTransaction(t *testing.T) {
 
 	mock.ExpectBegin().WillReturnError(fmt.Errorf("Error beginning transcation"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordSchemaScript(ctx, script)
@@ -334,7 +332,7 @@ func Test_RecordSchemaScript_ErrorInsertingScript(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "123412",
 		Content: "SELECT 1",
 		Name:    "v1__hello.sql",
@@ -343,7 +341,7 @@ func Test_RecordSchemaScript_ErrorInsertingScript(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnError(fmt.Errorf("Error inserting content"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordSchemaScript(ctx, script)
@@ -364,7 +362,7 @@ func Test_RecordSchemaScript_ErrorInsertingToSchemaTable(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "123412",
 		Content: "SELECT 1",
 		Name:    "v1__hello.sql",
@@ -372,9 +370,9 @@ func Test_RecordSchemaScript_ErrorInsertingToSchemaTable(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.SchemaMigrationsTable)).WillReturnError(fmt.Errorf("Error inserting to schema table"))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", SchemaMigrationsTable)).WillReturnError(fmt.Errorf("Error inserting to schema table"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordSchemaScript(ctx, script)
@@ -395,7 +393,7 @@ func Test_RecordSchemaScript_ErrorCommitingTransaction(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "123412",
 		Content: "SELECT 1",
 		Name:    "v1__hello.sql",
@@ -403,10 +401,10 @@ func Test_RecordSchemaScript_ErrorCommitingTransaction(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.SchemaMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", SchemaMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit().WillReturnError(fmt.Errorf("Error commiting tx"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordSchemaScript(ctx, script)
@@ -427,7 +425,7 @@ func Test_RecordDataScript_Success(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "12308768912",
 		Content: "SELECT 1",
 		Name:    "data_employee.sql",
@@ -435,10 +433,10 @@ func Test_RecordDataScript_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.DataMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", DataMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordDataScript(ctx, script)
@@ -459,7 +457,7 @@ func Test_RecordDataScript_ErrorBeginningTx(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "12308768912",
 		Content: "SELECT 1",
 		Name:    "data_employee.sql",
@@ -467,7 +465,7 @@ func Test_RecordDataScript_ErrorBeginningTx(t *testing.T) {
 
 	mock.ExpectBegin().WillReturnError(fmt.Errorf("Error begining transaction"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordDataScript(ctx, script)
@@ -488,7 +486,7 @@ func Test_RecordDataScript_ErrorRecordingDataScript(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "12308768912",
 		Content: "SELECT 1",
 		Name:    "data_employee.sql",
@@ -497,7 +495,7 @@ func Test_RecordDataScript_ErrorRecordingDataScript(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnError(fmt.Errorf("Error inserting data"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordDataScript(ctx, script)
@@ -518,7 +516,7 @@ func Test_RecordDataScript_ErrorInsertingToDataTable(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "12308768912",
 		Content: "SELECT 1",
 		Name:    "data_employee.sql",
@@ -526,9 +524,9 @@ func Test_RecordDataScript_ErrorInsertingToDataTable(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.DataMigrationsTable)).WillReturnError(fmt.Errorf("Error inserting into gsmt-data-migrations"))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", DataMigrationsTable)).WillReturnError(fmt.Errorf("Error inserting into gsmt-data-migrations"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordDataScript(ctx, script)
@@ -549,7 +547,7 @@ func Test_RecordDataScript_ErrorCommitingTransaction(t *testing.T) {
 
 	defer db.Close()
 
-	script := data.MigrationScript{
+	script := MigrationScript{
 		Hash:    "12308768912",
 		Content: "SELECT 1",
 		Name:    "data_employee.sql",
@@ -557,10 +555,10 @@ func Test_RecordDataScript_ErrorCommitingTransaction(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(script.Content).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", data.DataMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(fmt.Sprintf("INSERT INTO %s", DataMigrationsTable)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit().WillReturnError(fmt.Errorf("Error commiting transaction"))
 
-	store := NewSQLStore(db, dialect.Postgres())
+	store := NewSQLStore(db, Postgres())
 	ctx := context.Background()
 
 	err = store.RecordDataScript(ctx, script)

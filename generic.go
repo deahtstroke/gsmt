@@ -1,4 +1,4 @@
-package dialect
+package gsmt
 
 type Dialect interface {
 	Placeholder(i int) string

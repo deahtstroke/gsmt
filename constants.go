@@ -1,4 +1,4 @@
-package data
+package gsmt
 
 const (
 	SchemaMigrationsTable = "gsmt_schema_migrations"

@@ -7,9 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/deahtstroke/gsmt/pkg/dialect"
-	"github.com/deahtstroke/gsmt/pkg/migrator"
-	"github.com/deahtstroke/gsmt/pkg/store"
+	"github.com/deahtstroke/gsmt"
 
 	"github.com/testcontainers/testcontainers-go"
 
@@ -37,9 +35,9 @@ func Test_PostgresDialectMigrationsShouldBeSuccessful_NoEmbeddedFS(t *testing.T)
 	}()
 
 	fs := os.DirFS("./migrations/scripts/")
-	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+	migrator, err := gsmt.NewMigrator(gsmt.MigratorOpts{
 		Schema: fs,
-		Store:  store.NewSQLStore(db, dialect.Postgres()),
+		Store:  gsmt.NewSQLStore(db, gsmt.Postgres()),
 	})
 	if err != nil {
 		t.Fatalf("Error creating migrator: %v", err)
@@ -84,9 +82,9 @@ func Test_PostgresDialectMigrationsShouldBeSuccessful_EmbeddedFs(t *testing.T) {
 		}
 	}()
 
-	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+	migrator, err := gsmt.NewMigrator(gsmt.MigratorOpts{
 		Schema: schemaFs,
-		Store:  store.NewSQLStore(db, dialect.Postgres()),
+		Store:  gsmt.NewSQLStore(db, gsmt.Postgres()),
 	})
 	if err != nil {
 		t.Fatalf("Error creating migrator: %v", err)
@@ -122,10 +120,10 @@ func Test_PostgresDialect_MigrationsWithDataShouldBeSuccessul(t *testing.T) {
 		}
 	}()
 
-	migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+	migrator, err := gsmt.NewMigrator(gsmt.MigratorOpts{
 		Schema: schemaFs,
 		Data:   dataFs,
-		Store:  store.NewSQLStore(db, dialect.Postgres()),
+		Store:  gsmt.NewSQLStore(db, gsmt.Postgres()),
 	})
 	if err != nil {
 		t.Errorf("Error creating migrator: %s", err)
