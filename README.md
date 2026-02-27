@@ -79,7 +79,7 @@ var dataFS embed.FS
 
 func main() {
     db, _ := sql.Open("postgres", "postgres://user:pass@localhost/dbname?sslmode=disable")
-    migrator, err := gsmt.NewMigrator(migrator.MigratorOpts{
+    migrator, err := gsmt.NewMigrator(gsmt.MigratorOpts{
         Schema: schemaFS,
         Data: dataFS,
         Store := gsmt.NewSQLStore(db, gsmt.Postgres())
