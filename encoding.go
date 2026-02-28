@@ -7,7 +7,7 @@ import (
 	"io/fs"
 )
 
-func Encode(s string) string {
+func Hash(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
 }

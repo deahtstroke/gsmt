@@ -7,14 +7,16 @@ import (
 	"path/filepath"
 )
 
+var migrator Migrator
+
 type Migrator struct {
-	store    MetadataStore
+	store    Store
 	schemaFS fs.FS
 	dataFS   fs.FS
 }
 
 type MigratorOpts struct {
-	Store  MetadataStore
+	Store  Store
 	Schema fs.FS
 	Data   fs.FS
 }
@@ -57,7 +59,7 @@ func (m *Migrator) ensureMetadataTables(ctx context.Context) error {
 }
 
 func (m *Migrator) migrateSchema(ctx context.Context) error {
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, SchemaMigrationsTable)
+	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, SchemaTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
@@ -69,7 +71,7 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			hash := Encode(content)
+			hash := Hash(content)
 			if checksum, exists := appliedMigrations[d.Name()]; exists {
 
 				if hash != checksum {
@@ -94,7 +96,7 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 		return nil
 	}
 
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, DataMigrationsTable)
+	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, DataTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
@@ -106,7 +108,7 @@ func (m *Migrator) migrateData(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			hash := Encode(content)
+			hash := Hash(content)
 			if checksum, exists := appliedMigrations[d.Name()]; exists {
 				if hash == checksum {
 					return nil

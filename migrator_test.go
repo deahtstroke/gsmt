@@ -425,7 +425,7 @@ func getScriptHashes(dir fs.FS) map[string]string {
 				return err
 			}
 
-			hashes[d.Name()] = Encode(content)
+			hashes[d.Name()] = Hash(content)
 		}
 		return nil
 	})

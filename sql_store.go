@@ -8,51 +8,62 @@ import (
 	"time"
 )
 
-type SQLMigrationStore struct {
+type TableName string
+
+const (
+	SchemaTable TableName = "gsmt_schema"
+	DataTable   TableName = "gsmt_data"
+)
+
+type SQLStore struct {
 	db      *sql.DB
 	dialect Dialect
 }
 
-func NewSQLStore(db *sql.DB, dialect Dialect) *SQLMigrationStore {
-	return &SQLMigrationStore{
+func NewSQLStore(db *sql.DB, dialect Dialect) Store {
+	return &SQLStore{
 		db:      db,
 		dialect: dialect,
 	}
 }
 
-func (ms *SQLMigrationStore) SetupMetadataTables(ctx context.Context) error {
-	for name, dll := range ms.dialect.GetMetadataTables() {
-		ms.createTableIfNotExists(ctx, name, dll)
+func (s *SQLStore) SetupMetadataTables(ctx context.Context) error {
+	schemaDDL := s.dialect.CreateDataTable(string(SchemaTable))
+	if err := s.createTableIfNotExists(ctx, SchemaTable, schemaDDL); err != nil {
+		return err
+	}
+
+	dataDDL := s.dialect.CreateDataTable(string(DataTable))
+	if err := s.createTableIfNotExists(ctx, DataTable, dataDDL); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (ms *SQLMigrationStore) createTableIfNotExists(ctx context.Context, tableName string, ddl string) error {
+func (s *SQLStore) createTableIfNotExists(ctx context.Context, table TableName, ddl string) error {
 	if strings.TrimSpace(ddl) == "" {
-		return fmt.Errorf("Passed DDL for table [%s] is empty", tableName)
+		return fmt.Errorf("Passed DDL for table [%s] is empty", string(table))
 	}
+
 	var exists bool
-	err := ms.db.QueryRowContext(ctx, `
-		SELECT EXISTS ( 
-			SELECT 1 FROM information_schema.tables
-			WHERE table_schema = 'public' AND table_name = $1
-		)`, tableName).Scan(&exists)
+	err := s.db.QueryRowContext(ctx, s.dialect.TableExists(), string(table)).
+		Scan(&exists)
+
 	if err != nil {
-		return fmt.Errorf("Error parsing or executing exists query for table [%s]: %v", tableName, err)
+		return fmt.Errorf("Error parsing or executing exists query for table [%s]: %v", table, err)
 	}
 
 	if !exists {
-		_, err = ms.db.ExecContext(ctx, ddl)
+		_, err = s.db.ExecContext(ctx, ddl)
 		if err != nil {
-			return fmt.Errorf("Failed to execute ddl for table [%s]: %v", tableName, err)
+			return fmt.Errorf("Failed to execute ddl for table [%s]: %v", table, err)
 		}
 	}
 	return nil
 }
 
-func (ms *SQLMigrationStore) GetAppliedChecksums(ctx context.Context, table string) (map[string]string, error) {
-	query := fmt.Sprintf(`SELECT script_name, checksum FROM %s`, table)
-	rows, err := ms.db.QueryContext(ctx, query)
+func (s *SQLStore) GetAppliedChecksums(ctx context.Context, table TableName) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, s.dialect.GetChecksums(string(table)))
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +83,8 @@ func (ms *SQLMigrationStore) GetAppliedChecksums(ctx context.Context, table stri
 	return applied, nil
 }
 
-func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script MigrationScript) error {
-	tx, err := ms.db.BeginTx(ctx, nil)
+func (s *SQLStore) RecordSchemaScript(ctx context.Context, script MigrationScript) error {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("Error beginning transaction for script [%s]: %v", script.Name, err)
 	}
@@ -85,12 +96,7 @@ func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script Migr
 		return fmt.Errorf("Error applying migration script [%s]: %v", script.Name, err)
 	}
 
-	recordScriptQuery := fmt.Sprintf(`
-			INSERT INTO %s (checksum, execution_time_ms, script_name, script_content)
-			VALUES (%s, %s, %s, %s)
-		`, SchemaMigrationsTable, ms.dialect.Placeholder(1), ms.dialect.Placeholder(2), ms.dialect.Placeholder(3), ms.dialect.Placeholder(4))
-
-	_, err = tx.ExecContext(ctx, recordScriptQuery, script.Hash, time.Since(start).Milliseconds(), script.Name, script.Content)
+	_, err = tx.ExecContext(ctx, s.dialect.InsertMetadata(string(SchemaTable)), script.Hash, time.Since(start).Milliseconds(), script.Name, script.Content)
 	if err != nil {
 		return fmt.Errorf("Error inserting new schema script [%s] with checksum [%s]: %v", script.Name, script.Hash, err)
 	}
@@ -99,7 +105,7 @@ func (ms *SQLMigrationStore) RecordSchemaScript(ctx context.Context, script Migr
 	return err
 }
 
-func (ms *SQLMigrationStore) RecordDataScript(ctx context.Context, script MigrationScript) error {
+func (ms *SQLStore) RecordDataScript(ctx context.Context, script MigrationScript) error {
 	tx, err := ms.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("Error beginning transaction for script [%s]: %v", script.Name, err)
@@ -112,12 +118,8 @@ func (ms *SQLMigrationStore) RecordDataScript(ctx context.Context, script Migrat
 		return fmt.Errorf("Error applying data script [%s]: %v", script.Name, err)
 	}
 
-	recordScriptQuery := fmt.Sprintf(`
-		INSERT INTO %s (checksum, execution_time_ms, script_name)
-		VALUES (%s, %s, %s)
-		`, DataMigrationsTable, ms.dialect.Placeholder(1), ms.dialect.Placeholder(2), ms.dialect.Placeholder(3))
-
-	_, err = tx.ExecContext(ctx, recordScriptQuery, script.Hash, time.Since(start).Milliseconds(), script.Name)
+	_, err = tx.ExecContext(ctx, ms.dialect.CreateDataTable(string(DataTable)),
+		script.Hash, time.Since(start).Milliseconds(), script.Name)
 	if err != nil {
 		return fmt.Errorf("Error inserting new data script [%s] with checksum [%s]: %v", script.Name, script.Hash, err)
 	}
