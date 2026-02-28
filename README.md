@@ -68,9 +68,7 @@ import (
     "embed"
     "log"
 
-    "github.com/deahtstroke/gsmt/pkg/dialect"
-    "github.com/deahtstroke/gsmt/pkg/migrator"
-    "github.com/deahtstroke/gsmt/pkg/store"
+    "github.com/deahtstroke/gsmt"
 )
 
 //go:embed migrations/schema
@@ -81,10 +79,10 @@ var dataFS embed.FS
 
 func main() {
     db, _ := sql.Open("postgres", "postgres://user:pass@localhost/dbname?sslmode=disable")
-    migrator, err := migrator.NewMigrator(migrator.MigratorOpts{
+    migrator, err := gsmt.NewMigrator(gsmt.MigratorOpts{
         Schema: schemaFS,
         Data: dataFS,
-        Store := store.NewSQLStore(db, dialect.Postgres())
+        Store := gsmt.NewSQLStore(db, gsmt.Postgres())
     })
 
     if err != nil {
