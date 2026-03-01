@@ -2,72 +2,40 @@ package gsmt
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io/fs"
 	"path/filepath"
 )
 
-var migrator Migrator
-
-type Migrator struct {
-	store    Store
-	schemaFS fs.FS
-	dataFS   fs.FS
+type migrator struct {
+	store       Store
+	migrationFS fs.FS
 }
 
-type MigratorOpts struct {
-	Store  Store
-	Schema fs.FS
-	Data   fs.FS
+func ApplyMigrations(ctx context.Context, db *sql.DB) error {
+	if err := m.ensureMetadataTables(ctx, db); err != nil {
+		return fmt.Errorf("Error ensuring metadata tables are created: %v", err)
+	}
+
+	err := m.migrateSchema(ctx, db)
+	return err
 }
 
-// Create a new migrator given the options available
-func NewMigrator(opts MigratorOpts) (*Migrator, error) {
-	if opts.Schema == nil {
-		return nil, fmt.Errorf("Schema file system is not declared")
-	}
-
-	if opts.Store == nil {
-		return nil, fmt.Errorf("Metadata store is nil")
-	}
-
-	return &Migrator{
-		schemaFS: opts.Schema,
-		dataFS:   opts.Data,
-		store:    opts.Store,
-	}, nil
+func (m *migrator) ensureMetadataTables(ctx context.Context, db *sql.DB) error {
+	return s.SetupMetadataTables(ctx, db)
 }
 
-func (m *Migrator) ApplyMigrations(ctx context.Context) error {
-	if err := m.ensureMetadataTables(ctx); err != nil {
-		return fmt.Errorf("Error ensuring metadata tables: %v", err)
-	}
-
-	if err := m.migrateSchema(ctx); err != nil {
-		return fmt.Errorf("Error applying schema migrations: %v", err)
-	}
-
-	if err := m.migrateData(ctx); err != nil {
-		return fmt.Errorf("Error applying data migrations: %v", err)
-	}
-
-	return nil
-}
-
-func (m *Migrator) ensureMetadataTables(ctx context.Context) error {
-	return m.store.SetupMetadataTables(ctx)
-}
-
-func (m *Migrator) migrateSchema(ctx context.Context) error {
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, SchemaTable)
+func (m *migrator) migrateSchema(ctx context.Context, db *sql.DB) error {
+	appliedMigrations, err := s.GetAppliedChecksums(ctx, db, SchemaTable)
 	if err != nil {
 		return fmt.Errorf("Error fetching applied checksums: %v", err)
 	}
 
-	return fs.WalkDir(m.schemaFS, ".", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(m.migrationFS, ".", func(path string, d fs.DirEntry, err error) error {
 		switch filepath.Ext(path) {
 		case ".sql":
-			content, err := ReadFileContent(m.schemaFS, path)
+			content, err := ReadFileContent(m.migrationFS, path)
 			if err != nil {
 				return err
 			}
@@ -79,43 +47,7 @@ func (m *Migrator) migrateSchema(ctx context.Context) error {
 				}
 				return nil
 			} else {
-				return m.store.RecordSchemaScript(ctx, MigrationScript{
-					Name:    d.Name(),
-					Content: content,
-					Hash:    hash,
-				})
-			}
-		default:
-			return nil
-		}
-	})
-}
-
-func (m *Migrator) migrateData(ctx context.Context) error {
-	if m.dataFS == nil {
-		return nil
-	}
-
-	appliedMigrations, err := m.store.GetAppliedChecksums(ctx, DataTable)
-	if err != nil {
-		return fmt.Errorf("Error fetching applied checksums: %v", err)
-	}
-
-	return fs.WalkDir(m.dataFS, ".", func(path string, d fs.DirEntry, err error) error {
-		switch filepath.Ext(path) {
-		case ".sql":
-			content, err := ReadFileContent(m.dataFS, path)
-			if err != nil {
-				return err
-			}
-			hash := Hash(content)
-			if checksum, exists := appliedMigrations[d.Name()]; exists {
-				if hash == checksum {
-					return nil
-				}
-				return fmt.Errorf("Existing data migration with name %s has a different checksum: Exising: %s. New one: %s", path, checksum, hash)
-			} else {
-				return m.store.RecordDataScript(ctx, MigrationScript{
+				return s.RecordSchemaScript(ctx, db, MigrationScript{
 					Name:    d.Name(),
 					Content: content,
 					Hash:    hash,
