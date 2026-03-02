@@ -14,12 +14,13 @@ func NewSqlite3() *Sqlite3 {
 
 func (s *Sqlite3) CreateMetadataTable(name string) string {
 	return fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
+		CREATE TABLE IF NOT EXISTS "%s" (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			checksum TEXT NOT NULL,
-			applied_at INTEGER NOT DEFAULT (strftime('%%s'), 'now')
+			applied_at INTEGER DEFAULT (strftime('%%s', 'now')),
 			execution_time_ms INTEGER,
-			script_name TEXT NOT NULL
+			script_name TEXT NOT NULL,
+			script_content TEXT
 		);
 	`, name)
 }

@@ -3,12 +3,14 @@ package dialect
 import (
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 	"time"
 
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	_ "modernc.org/sqlite"
 )
 
 type DialectTestSuite struct {
@@ -29,6 +31,29 @@ func TestPostgresDialect(t *testing.T) {
 	})
 
 	RunDialectTests(t, DialectTestSuite{Dialect: NewPostgres(), DB: db})
+}
+
+func TestSqlite3Dialect(t *testing.T) {
+	db, file, err := connectToSqlite(t)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		db.Close()
+		os.Remove(file.Name())
+	})
+
+	RunDialectTests(t, DialectTestSuite{Dialect: NewSqlite3(), DB: db})
+}
+
+func connectToSqlite(t *testing.T) (*sql.DB, *os.File, error) {
+	tempFile, err := os.CreateTemp("", "testdb-*.db")
+	require.NoError(t, err)
+
+	path := tempFile.Name()
+	db, err := sql.Open("sqlite", path)
+	require.NoError(t, err)
+
+	return db, tempFile, nil
 }
 
 func RunDialectTests(t *testing.T, suite DialectTestSuite) {
