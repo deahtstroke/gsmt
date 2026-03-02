@@ -9,21 +9,16 @@ import (
 )
 
 type migrator struct {
-	store       Store
 	migrationFS fs.FS
 }
 
 func ApplyMigrations(ctx context.Context, db *sql.DB) error {
-	if err := m.ensureMetadataTables(ctx, db); err != nil {
+	if err := s.SetupMetadataTables(ctx, db); err != nil {
 		return fmt.Errorf("Error ensuring metadata tables are created: %v", err)
 	}
 
 	err := m.migrateSchema(ctx, db)
 	return err
-}
-
-func (m *migrator) ensureMetadataTables(ctx context.Context, db *sql.DB) error {
-	return s.SetupMetadataTables(ctx, db)
 }
 
 func (m *migrator) migrateSchema(ctx context.Context, db *sql.DB) error {
